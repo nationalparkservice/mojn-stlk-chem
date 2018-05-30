@@ -12,12 +12,13 @@ ui <- fluidPage(
   sidebarLayout(
     # Sidebar with a dropdown to select water chemistry parameter
     sidebarPanel(
-      
+      uiOutput("choose.chem.params")
     ),
     
     # Show one plot per lake of water chem parameter vs water year
     mainPanel(
-      
+      uiOutput("chem.plots"),
+      tableOutput("test.table")
     )
   )
 )
@@ -33,13 +34,25 @@ server <- function(input, output) {
   close(LAKES.db)
   
   # Generate water chem parameter select input
-  chem.params <- levels(chem$CharacteristicLabel)
+  chem.choices <- levels(chem$CharacteristicLabel)
+  output$choose.chem.params <- renderUI({
+    selectInput("chem.params", label = "Choose a water chemistry parameter", choices = chem.choices)
+  })
   
-  # Get the water chem parameter from the dropdown
+  # For testing purposes, output a data table of chem data filtered by the selected parameter
+  output$test.table <- renderTable({
+    filter(chem, CharacteristicLabel == input$chem.params)
+  })
   
   # Generate one output plot per lake
   lakes <- levels(chem$Site)
-  
+  output$chem.plots <- renderUI({
+    tagList(
+      lapply(lakes, function(lake) {
+        strong(lake)
+      })
+    )
+  })
 }
 
 # Run the application 
