@@ -29,6 +29,8 @@ server <- function(input, output) {
   LAKES.db <- odbcDriverConnect(LAKES.dsn)
   # Pull water chem data into a dataframe
   chem <- sqlFetch(LAKES.db, "analysis.WaterChemistry")
+  chem <- spread(chem, SampleType, LabValue)
+  names(chem) <- sub(" ", "", names(chem))
   # Close database connection
   close(LAKES.db)
   
@@ -61,13 +63,17 @@ server <- function(input, output) {
         filter(chem, (Site == my.lake) & (CharacteristicLabel == input$chem.params)) %>%
           arrange(Site, VisitDate) %>%
           plot_ly(x = ~VisitDate,
-                  y = ~LabValue,
-                  color = ~SampleType,
+                  y = ~Routine,
                   type = "scatter",
                   mode = "lines+markers",
+                  name = "Primary",
                   text = ~paste("Visit date: ", VisitDate, "<br>Flag: ", DQF, "<br>Note: ", DQFNote, "<br>DPL :", DPL)) %>%
+          add_trace(y = ~LabDuplicate,
+                    name = "Duplicate",
+                    mode = "markers") %>%
           layout(title = my.lake,
-                 xaxis = list(title = ""))
+                 xaxis = list(title = ""),
+                 yaxis = list(title = "Value"))
       })
     })
   }
