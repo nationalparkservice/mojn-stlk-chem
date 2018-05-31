@@ -11,14 +11,13 @@ ui <- fluidPage(
   
   sidebarLayout(
     # Sidebar with a dropdown to select water chemistry parameter
-    sidebarPanel(
+    sidebarPanel(width = 3,
       uiOutput("choose.chem.params")
     ),
     
     # Show one plot per lake of water chem parameter vs water year
     mainPanel(
-      uiOutput("chem.plots"),
-      tableOutput("test.table")
+      uiOutput("chem.plots")
     )
   )
 )
@@ -39,20 +38,39 @@ server <- function(input, output) {
     selectInput("chem.params", label = "Choose a water chemistry parameter", choices = chem.choices)
   })
   
-  # For testing purposes, output a data table of chem data filtered by the selected parameter
-  output$test.table <- renderTable({
-    filter(chem, CharacteristicLabel == input$chem.params)
+  # Get list of lakes
+  lakes <- levels(chem$Site)
+  rows <- seq(from = 1, to = length(lakes), by = 2)
+  
+  # Insert one Plotly output object per lake into the UI
+  output$chem.plots <- renderUI({
+    plot.outputs <- lapply(rows, function(i) {
+      fluidRow(
+        column(6, plotlyOutput(lakes[i])),
+        column(6, plotlyOutput(lakes[i+1]))
+      )
+    })
+    tagList(plot.outputs)
   })
   
-  # Generate one output plot per lake
-  lakes <- levels(chem$Site)
-  output$chem.plots <- renderUI({
-    tagList(
-      lapply(lakes, function(lake) {
-        strong(lake)
+  # Actually render the plots
+  for (lake in lakes) {
+    local({
+      my.lake <- lake
+      output[[my.lake]] <- renderPlotly({
+        filter(chem, (Site == my.lake) & (CharacteristicLabel == input$chem.params)) %>%
+          arrange(Site, VisitDate) %>%
+          plot_ly(x = ~VisitDate,
+                  y = ~LabValue,
+                  color = ~SampleType,
+                  type = "scatter",
+                  mode = "lines+markers",
+                  text = ~paste("Visit date: ", VisitDate, "<br>Flag: ", DQF, "<br>Note: ", DQFNote, "<br>DPL :", DPL)) %>%
+          layout(title = my.lake,
+                 xaxis = list(title = ""))
       })
-    )
-  })
+    })
+  }
 }
 
 # Run the application 
