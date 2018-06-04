@@ -12,7 +12,7 @@ ui <- fluidPage(
   sidebarLayout(
     # Sidebar with a dropdown to select water chemistry parameter
     sidebarPanel(width = 3,
-      uiOutput("choose.chem.params")
+                 uiOutput("choose.chem.params")
     ),
     
     # Show one plot per lake of water chem parameter vs water year
@@ -60,23 +60,43 @@ server <- function(input, output) {
     local({
       # Filter chem data by lake and selected water chem parameter
       my.lake <- lake
-      data.to.plot <- filter(chem, (Site == my.lake) & (CharacteristicLabel == input$chem.params)) %>%
-        arrange(Site, VisitDate)
+      
       # Render plot for the given lake
       output[[my.lake]] <- renderPlotly({
-          plot_ly(data = data.to.plot,
-                  x = ~VisitDate,
-                  y = ~Routine,
-                  type = "scatter",
-                  mode = "lines+markers",
-                  name = "Primary",
-                  text = ~ifelse(is.na(VisitDate), NA, paste("Visit date: ", VisitDate, "<br>Flag: ", DQF, "<br>Note: ", DQFNote, "<br>DPL: ", DPL))) %>%
+        # Get selected water chem parameter from the input dropdown
+        my.param <- input$chem.params
+        # Get x and y ranges for data across all lakes so that all plots can have the same axes
+        param.data <- filter(chem, CharacteristicLabel == my.param)
+        max.date <- max(param.data$VisitDate, na.rm = TRUE)
+        min.date <- min(param.data$VisitDate, na.rm = TRUE)
+        max.y <- max(rbind(param.data$Routine, param.data$LabDuplicate), na.rm = TRUE)
+        min.y <- min(rbind(param.data$Routine, param.data$LabDuplicate), na.rm = TRUE)
+        
+        buffer.date <- ceiling(0.05*(max.date - min.date))
+        range.date <- c(min.date - buffer.date, max.date + buffer.date)
+        buffer.y <- 0.05*(max.y - min.y)
+        range.y <- c(min.y - buffer.y, max.y + buffer.y)
+        
+        # Filter by lake and chemistry parameter
+        data.to.plot <- filter(chem, (Site == my.lake) & (CharacteristicLabel == my.param)) %>%
+          arrange(Site, VisitDate)
+        xrange <- c(min(data.to.plot$VisitDate), max(data.to.plot$VisitDate))
+        
+        plot_ly(data = data.to.plot,
+                x = ~VisitDate,
+                y = ~Routine,
+                type = "scatter",
+                mode = "lines+markers",
+                name = "Primary",
+                text = ~ifelse(is.na(VisitDate), NA, paste("Visit date: ", VisitDate, "<br>Flag: ", DQF, "<br>Note: ", DQFNote, "<br>DPL: ", DPL))) %>%
           add_trace(y = ~LabDuplicate,
                     name = "Duplicate",
                     mode = "markers") %>%
           layout(title = my.lake,
-                 xaxis = list(title = ""),
-                 yaxis = list(title = "Value"))
+                 xaxis = list(title = "",
+                              range = range.date),
+                 yaxis = list(title = "Value",
+                              range = range.y))
       })
     })
   }
