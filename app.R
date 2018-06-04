@@ -58,16 +58,19 @@ server <- function(input, output) {
   # Actually render the plots
   for (lake in lakes) {
     local({
+      # Filter chem data by lake and selected water chem parameter
       my.lake <- lake
+      data.to.plot <- filter(chem, (Site == my.lake) & (CharacteristicLabel == input$chem.params)) %>%
+        arrange(Site, VisitDate)
+      # Render plot for the given lake
       output[[my.lake]] <- renderPlotly({
-        filter(chem, (Site == my.lake) & (CharacteristicLabel == input$chem.params)) %>%
-          arrange(Site, VisitDate) %>%
-          plot_ly(x = ~VisitDate,
+          plot_ly(data = data.to.plot,
+                  x = ~VisitDate,
                   y = ~Routine,
                   type = "scatter",
                   mode = "lines+markers",
                   name = "Primary",
-                  text = ~paste("Visit date: ", VisitDate, "<br>Flag: ", DQF, "<br>Note: ", DQFNote, "<br>DPL :", DPL)) %>%
+                  text = ~ifelse(is.na(VisitDate), NA, paste("Visit date: ", VisitDate, "<br>Flag: ", DQF, "<br>Note: ", DQFNote, "<br>DPL: ", DPL))) %>%
           add_trace(y = ~LabDuplicate,
                     name = "Duplicate",
                     mode = "markers") %>%
@@ -79,6 +82,6 @@ server <- function(input, output) {
   }
 }
 
-# Run the application 
+# Run the application
 shinyApp(ui = ui, server = server)
 
