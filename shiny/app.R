@@ -23,7 +23,7 @@ ui <- fluidPage(
 )
 
 # Define server logic
-server <- function(input, output) {
+server <- function(input, output, session) {
   # Connect to the database
   LAKES.dsn <- 'driver={SQL Server Native Client 11.0};server=INPLAKE52V\\MOJN;database=MOJN_Lakes;trusted_connection=Yes;applicationintent=readonly'
   LAKES.db <- odbcDriverConnect(LAKES.dsn)
@@ -100,8 +100,8 @@ server <- function(input, output) {
       })
     })
   }
+  session$onSessionEnded(function() {
+    stopApp()
+  })
 }
-
-# Run the application
-shinyApp(ui = ui, server = server)
 
