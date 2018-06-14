@@ -24,20 +24,32 @@ ui <- fluidPage(
 
 # Define server logic
 server <- function(input, output) {
-  # Connect to the database
-  LAKES.dsn <- 'driver={SQL Server Native Client 11.0};server=INPLAKE52V\\MOJN;database=MOJN_Lakes;trusted_connection=Yes;applicationintent=readonly'
-  LAKES.db <- odbcDriverConnect(LAKES.dsn)
-  # Pull water chem data into a dataframe
-  chem <- sqlFetch(LAKES.db, "analysis.WaterChemistry")
-  chem <- spread(chem, SampleType, LabValue)
-  names(chem) <- sub(" ", "", names(chem))
-  # Close database connection
-  close(LAKES.db)
+  
+  # # Connect to MOJN Lakes database, import all water chem data, and write it to a .csv
+  # LAKES.dsn <- 'driver={SQL Server Native Client 11.0};server=INPLAKE52V\\MOJN;database=MOJN_Lakes;trusted_connection=Yes;applicationintent=readonly'
+  # LAKES.db <- odbcDriverConnect(LAKES.dsn)
+  # # Pull water chem data into a dataframe
+  # chem <- sqlFetch(LAKES.db, "analysis.WaterChemistry")
+  # chem <- spread(chem, SampleType, LabValue)
+  # names(chem) <- sub(" ", "", names(chem))
+  # # Close database connection
+  # close(LAKES.db)
+  # write.csv(chem, "chem_data.csv", row.names = FALSE)
+  
+  # Read data from csv
+  chem <- read.csv("chem_data.csv")
+  
+  # Convert dates from factor to date
+  chem$VisitDate <- as.Date(chem$VisitDate)
+  
+  # Create a column that includes the water chem characteristic with the corresponding units
+  chem$CharacteristicWUnit <- paste0(chem$CharacteristicLabel, " (", chem$Unit, ")") %>%
+    as.factor()
   
   # Generate water chem parameter select input
-  chem.choices <- levels(chem$CharacteristicLabel)
+  chem.choices <- levels(chem$CharacteristicWUnit)
   output$choose.chem.params <- renderUI({
-    selectInput("chem.params", label = "Choose a water chemistry parameter", choices = chem.choices)
+    selectInput("chem.params", label = "Choose a water chemistry parameter", choices = chem.choices, selected = "Alkalinity2 (mg CaCO3/L)")
   })
   
   # Get list of lakes
@@ -66,7 +78,7 @@ server <- function(input, output) {
         # Get selected water chem parameter from the input dropdown
         my.param <- input$chem.params
         # Get x and y ranges for data across all lakes so that all plots can have the same axes
-        param.data <- filter(chem, CharacteristicLabel == my.param)
+        param.data <- filter(chem, CharacteristicWUnit == my.param)
         max.date <- max(param.data$VisitDate, na.rm = TRUE)
         min.date <- min(param.data$VisitDate, na.rm = TRUE)
         max.y <- max(rbind(param.data$Routine, param.data$LabDuplicate), na.rm = TRUE)
@@ -78,25 +90,27 @@ server <- function(input, output) {
         range.y <- c(min.y - buffer.y, max.y + buffer.y)
         
         # Filter by lake and chemistry parameter
-        data.to.plot <- filter(chem, (Site == my.lake) & (CharacteristicLabel == my.param)) %>%
+        data.to.plot <- filter(chem, (Site == my.lake) & (CharacteristicWUnit == my.param)) %>%
           arrange(Site, VisitDate)
         xrange <- c(min(data.to.plot$VisitDate), max(data.to.plot$VisitDate))
         
-        plot_ly(data = data.to.plot,
+        p <- plot_ly(data = data.to.plot,
                 x = ~VisitDate,
                 y = ~Routine,
                 type = "scatter",
                 mode = "lines+markers",
                 name = "Primary",
-                text = ~ifelse(is.na(VisitDate), NA, paste("Visit date: ", VisitDate, "<br>Flag: ", DQF, "<br>Note: ", DQFNote, "<br>DPL: ", DPL))) %>%
+                text = ~ifelse(is.na(VisitDate), NA, paste("Visit date: ", VisitDate, "<br>Flag: ", DQF, "<br>Note: ", DQFNote, "<br>Data Processing Level: ", DPL))) %>%
           add_trace(y = ~LabDuplicate,
                     name = "Duplicate",
                     mode = "markers") %>%
           layout(title = my.lake,
                  xaxis = list(title = "",
                               range = range.date),
-                 yaxis = list(title = "Value",
+                 yaxis = list(title = my.param,
                               range = range.y))
+        p$elementId <- NULL
+        p
       })
     })
   }
