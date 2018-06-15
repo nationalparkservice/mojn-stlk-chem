@@ -1,6 +1,6 @@
 library(shiny)
 library(plotly)
-#library(RODBC)
+library(RODBC)
 library(tidyverse)
 
 # Define UI
@@ -25,22 +25,26 @@ ui <- fluidPage(
 # Define server logic
 server <- function(input, output) {
   
-  # # Connect to MOJN Lakes database, import all water chem data, and write it to a .csv
-  # LAKES.dsn <- 'driver={SQL Server Native Client 11.0};server=INPLAKE52V\\MOJN;database=MOJN_Lakes;trusted_connection=Yes;applicationintent=readonly'
-  # LAKES.db <- odbcDriverConnect(LAKES.dsn)
-  # # Pull water chem data into a dataframe
-  # chem <- sqlFetch(LAKES.db, "analysis.WaterChemistry")
-  # chem <- spread(chem, SampleType, LabValue)
-  # names(chem) <- sub(" ", "", names(chem))
-  # # Close database connection
-  # close(LAKES.db)
-  # write.csv(chem, "chem_data.csv", row.names = FALSE)
+  # Connect to MOJN Lakes database, import all water chem data, and write it to a .csv
+  LAKES.dsn <- 'driver={SQL Server Native Client 11.0};server=INPLAKE52V\\MOJN;database=MOJN_Lakes;trusted_connection=Yes;applicationintent=readonly'
+  LAKES.db <- odbcDriverConnect(LAKES.dsn)
+  # If able to connect to the database, pull data from there and update the .csv. Otherwise, pull data from csv
+  if (LAKES.db != -1) {
+    # Pull water chem data into a dataframe
+    chem <- sqlFetch(LAKES.db, "analysis.WaterChemistry")
+    chem <- spread(chem, SampleType, LabValue)
+    names(chem) <- sub(" ", "", names(chem))
+    # Close database connection
+    close(LAKES.db)
+    write.csv(chem, "chem_data.csv", row.names = FALSE)
+  } else {
+    # Read data from csv
+    chem <- read.csv("chem_data.csv")
+    # Convert dates from factor to date
+    chem$VisitDate <- as.Date(chem$VisitDate)
+  }
   
-  # Read data from csv
-  chem <- read.csv("chem_data.csv")
-  
-  # Convert dates from factor to date
-  chem$VisitDate <- as.Date(chem$VisitDate)
+
   
   # Create a column that includes the water chem characteristic with the corresponding units
   chem$CharacteristicWUnit <- paste0(chem$CharacteristicLabel, " (", chem$Unit, ")") %>%
